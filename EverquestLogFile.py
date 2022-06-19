@@ -63,11 +63,11 @@ class EverquestLogFile:
         files = glob.glob(mask)
         files.sort(key=os.path.getmtime, reverse=True)
 
-        # foo - what if there are no files in the list?
+        # todo foo - what if there are no files in the list?
         latest_file = files[0]
 
         # extract the character name from the filename
-        # note that windows pathnames must usess double-backslashes in the pathname
+        # note that windows pathnames must use double-backslashes in the pathname
         # note that backslashes in regular expressions are double-double-backslashes
         # this expression replaces double \\ with quadruple \\\\, as well as the filename mask asterisk to a
         # named regular expression
@@ -78,7 +78,7 @@ class EverquestLogFile:
         rv = False
 
         # figure out what to do
-        # if we are already parsing a file, and it is the lastest file - do nothing
+        # if we are already parsing a file, and it is the latest file - do nothing
         if self.is_parsing() and (self.filename == latest_file):
             # do nothing
             pass
