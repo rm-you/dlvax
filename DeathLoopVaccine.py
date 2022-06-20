@@ -1,4 +1,4 @@
-
+import EverquestLogFile
 
 #
 # simple utility to prevent Everquest Death Loops
@@ -7,28 +7,28 @@
 # will kill the eqgame.exe process
 #
 
-import EverquestLogFile
+#
+# create a class for this application, that derives from the EverquestLogFile class
+# overload the process_line() method to customize the application's response to parsed
+# lines from the log file.
+#
+
 
 class DeathLoopVaccine(EverquestLogFile.EverquestLogFile):
 
-    #
     # ctor
-    #
     def __init__(self):
-
         # parent ctor
-        EverquestLogFile.EverquestLogFile.__init__(self)
+        super().__init__()
 
+    # custom parsing logic here
+    # this method gets called once for each parsed line
     def process_line(self, line):
-        print('*' + line, end='')
+        super().process_line(line)
+
 
 def main():
-
-
     dlv = DeathLoopVaccine()
-    dlv.begin_parsing()
-
-
 
 
 if __name__ == '__main__':
