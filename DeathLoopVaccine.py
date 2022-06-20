@@ -28,7 +28,17 @@ class DeathLoopVaccine(EverquestLogFile.EverquestLogFile):
 
 
 def main():
+
+    EverquestLogFile.starprint('')
+    EverquestLogFile.starprint('DeathLoopVaccine - Help prevent DeathLoop disease')
+    EverquestLogFile.starprint('')
+
     dlv = DeathLoopVaccine()
+
+
+    # note that as soon as the main thread ends, so will the child threads
+    while(True):
+        pass
 
 
 if __name__ == '__main__':
