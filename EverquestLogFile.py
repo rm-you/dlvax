@@ -26,7 +26,7 @@ class EverquestLogFile(threading.Thread):
     def __init__(self):
 
         # parent ctor
-        threading.Thread.__init__(self)
+        super().__init__()
 
         # instance data
         self.base_directory = myconfig.BASE_DIRECTORY
@@ -44,6 +44,9 @@ class EverquestLogFile(threading.Thread):
 
         # timezone string for current computer
         self.current_tzname = time.tzname[time.daylight]
+
+        # start parsing
+        self.begin_parsing()
 
     # build the file name
     # call this anytime that the filename attributes change
@@ -221,9 +224,7 @@ class EverquestLogFile(threading.Thread):
 # test driver
 #
 def main():
-
     elf = EverquestLogFile()
-    elf.begin_parsing()
 
 
 if __name__ == '__main__':
