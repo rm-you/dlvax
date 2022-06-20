@@ -8,8 +8,8 @@ import myconfig
 
 
 # allow for testing, by forcing the bot to read an old log file
-TEST_BOT = False
-# TEST_BOT = True
+TEST_ELF = False
+# TEST_ELF = True
 
 
 #################################################################################################
@@ -77,7 +77,7 @@ class EverquestLogFile(threading.Thread):
         # note that backslashes in regular expressions are double-double-backslashes
         # this expression replaces double \\ with quadruple \\\\, as well as the filename mask asterisk to a
         # named regular expression
-        charname_regexp = mask.replace('\\', '\\\\').replace('eqlog_*_', 'eqlog_(?P<charname>[\w ]+)_')
+        charname_regexp = mask.replace('\\', '\\\\').replace('eqlog_*_', 'eqlog_(?P<charname>[\\w ]+)_')
         m = re.match(charname_regexp, latest_file)
         char_name = m.group('charname')
 
@@ -130,7 +130,7 @@ class EverquestLogFile(threading.Thread):
         else:
             return None
 
-    # call this method to kick off the parsing threa
+    # call this method to kick off the parsing thread
     def begin_parsing(self):
 
         # already parsing?
@@ -140,7 +140,7 @@ class EverquestLogFile(threading.Thread):
         else:
 
             # use a back door to force the system to read a test file
-            if TEST_BOT:
+            if TEST_ELF:
 
                 # read a sample file for testing
                 filename = 'test_log.txt'
@@ -160,7 +160,7 @@ class EverquestLogFile(threading.Thread):
                 # status message
                 print('Now parsing character log for: [{}]'.format(self.char_name))
 
-                # create the background processs and kick it off
+                # create the background process and kick it off
                 self.run()
 
             else:
@@ -190,7 +190,7 @@ class EverquestLogFile(threading.Thread):
             else:
 
                 # don't check the heartbeat if we are just testing
-                if not TEST_BOT:
+                if not TEST_ELF:
 
                     # check the heartbeat.  Has our logfile gone silent?
                     elapsed_seconds = (now - self.prevtime)
@@ -207,7 +207,6 @@ class EverquestLogFile(threading.Thread):
                 time.sleep(0.1)
 
         print('----------------------------Parsing Stopped----------------------------')
-
 
     #
     # virtual method, to be overridden in derived classes to do whatever specialized
@@ -226,6 +225,6 @@ def main():
     elf = EverquestLogFile()
     elf.begin_parsing()
 
+
 if __name__ == '__main__':
     main()
-
