@@ -12,7 +12,11 @@ TEST_ELF = False
 # TEST_ELF = True
 
 
-#################################################################################################
+#
+# utility function to print with leading and trailing ** indicators
+#
+def starprint(line: str) -> None:
+    print(f'** {line:<100} **')
 
 
 #
@@ -23,10 +27,12 @@ class EverquestLogFile(threading.Thread):
     #
     # ctor
     #
-    def __init__(self):
+    def __init__(self) -> None:
 
         # parent ctor
-        super().__init__()
+        # the daemon=True parameter causes this child thread object to terminate
+        # when the parent thread terminates
+        super().__init__(daemon=True)
 
         # instance data
         self.base_directory = myconfig.BASE_DIRECTORY
@@ -50,23 +56,23 @@ class EverquestLogFile(threading.Thread):
 
     # build the file name
     # call this anytime that the filename attributes change
-    def build_filename(self, charname):
+    def build_filename(self, charname: str) -> str:
         rv = self.base_directory + self.logs_directory + 'eqlog_' + charname + '_' + self.server_name + '.txt'
         return rv
 
     # is the file being actively parsed
-    def set_parsing(self):
+    def set_parsing(self) -> None:
         self.parsing.set()
 
-    def clear_parsing(self):
+    def clear_parsing(self) -> None:
         self.parsing.clear()
 
-    def is_parsing(self):
+    def is_parsing(self) -> bool:
         return self.parsing.is_set()
 
     # open the file with most recent mod time (i.e. latest)
     # returns True if a new file was opened, False otherwise
-    def open_latest(self, seek_end=True):
+    def open_latest(self, seek_end=True) -> bool:
         # get a list of all log files, and sort on mod time, latest at top
         mask = self.base_directory + self.logs_directory + 'eqlog_*_' + self.server_name + '.txt'
         files = glob.glob(mask)
@@ -106,7 +112,7 @@ class EverquestLogFile(threading.Thread):
 
     # open the file
     # seek file position to end of file if passed parameter 'seek_end' is true
-    def open(self, charname, filename, seek_end=True):
+    def open(self, charname: str, filename: str, seek_end=True) -> bool:
         try:
             self.file = open(filename, 'r', errors='ignore')
             if seek_end:
@@ -117,28 +123,32 @@ class EverquestLogFile(threading.Thread):
             self.set_parsing()
             return True
         except OSError as err:
-            print("OS error: {0}".format(err))
-            print('Unable to open filename: [{}]'.format(filename))
+            starprint('OS error: {0}'.format(err))
+            starprint('Unable to open filename: [{}]'.format(filename))
             return False
 
     # close the file
-    def close(self):
+    def close(self) -> None:
         self.file.close()
         self.clear_parsing()
 
     # get the next line
-    def readline(self):
+    def readline(self) -> str or None:
         if self.is_parsing():
             return self.file.readline()
         else:
             return None
 
+    #
     # call this method to kick off the parsing thread
-    def begin_parsing(self):
+    #
+    def begin_parsing(self) -> bool:
+
+        rv = False
 
         # already parsing?
         if self.is_parsing():
-            print('Already parsing character log for: [{}]'.format(self.char_name))
+            starprint('Already parsing character log for: [{}]'.format(self.char_name))
 
         else:
 
@@ -161,22 +171,24 @@ class EverquestLogFile(threading.Thread):
             if rv:
 
                 # status message
-                print('Now parsing character log for: [{}]'.format(self.char_name))
+                starprint('Now parsing character log for: [{}]'.format(self.char_name))
 
                 # create the background process and kick it off
-                self.run()
+                self.start()
 
             else:
-                print('ERROR: Could not open character log file for: [{}]'.format(self.char_name))
-                print('Log filename: [{}]'.format(self.filename))
+                starprint('ERROR: Could not open character log file for: [{}]'.format(self.char_name))
+                starprint('Log filename: [{}]'.format(self.filename))
+
+        return rv
 
     #
     # override the thread.run() method
     # this method will execute in its own thread
     #
-    def run(self):
+    def run(self) -> None:
 
-        print('----------------------------Parsing Started----------------------------')
+        starprint('----------------------------Parsing Started----------------------------')
 
         # process the log file lines here
         while self.is_parsing():
@@ -199,25 +211,25 @@ class EverquestLogFile(threading.Thread):
                     elapsed_seconds = (now - self.prevtime)
 
                     if elapsed_seconds > self.heartbeat:
-                        print('Heartbeat over limit, elapsed seconds = {}'.format(elapsed_seconds))
+                        starprint('Heartbeat over limit, elapsed seconds = {:.2f}'.format(elapsed_seconds))
                         self.prevtime = now
 
                         # attempt to open latest log file - returns True if a new logfile is opened
                         if self.open_latest():
-                            print('Now parsing character log for: [{}]'.format(self.char_name))
+                            starprint('Now parsing character log for: [{}]'.format(self.char_name))
 
                 # if we didn't read a line, pause just for a 100 msec blink
                 time.sleep(0.1)
 
-        print('----------------------------Parsing Stopped----------------------------')
+        starprint('----------------------------Parsing Stopped----------------------------')
 
     #
     # virtual method, to be overridden in derived classes to do whatever specialized
     # parsing is required for this application.
     # Default behavior is to simply print() the line, with a * star at the start
     #
-    def process_line(self, line):
-        print('*' + line, end='')
+    def process_line(self, line: str) -> None:
+        print(line, end='')
 
 
 #
