@@ -7,31 +7,47 @@ import time
 import myconfig
 
 
-#################################################################################################
+# allow for testing, by forcing the bot to read an old log file
+TEST_ELF = False
+# TEST_ELF = True
+
+
+#
+# utility function to print with leading and trailing ** indicators
+#
+def starprint(line: str) -> None:
+    print(f'** {line:<100} **')
 
 
 #
 # class to encapsulate log file operations
 #
-class EverquestLogFile:
+class EverquestLogFile(threading.Thread):
+
+    # type-hint reference to base class data member _started, to quiet PEP warning
+    # about unreferenced attribute
+    _started: threading.Event
 
     #
     # ctor
     #
-    def __init__(self, char_name=myconfig.DEFAULT_CHAR_NAME):
+    def __init__(self) -> None:
+
+        # parent ctor
+        # the daemon=True parameter causes this child thread object to terminate
+        # when the parent thread terminates
+        super().__init__(daemon=True)
 
         # instance data
         self.base_directory = myconfig.BASE_DIRECTORY
         self.logs_directory = myconfig.LOGS_DIRECTORY
-        self.char_name = char_name
+        self.char_name = 'Unknown'
         self.server_name = myconfig.SERVER_NAME
         self.filename = self.build_filename(self.char_name)
         self.file = None
 
-        self.parsing = threading.Event()
-        self.parsing.clear()
-
-        self.author = ''
+        self._parsing = threading.Event()
+        self._parsing.clear()
 
         self.prevtime = time.time()
         self.heartbeat = myconfig.HEARTBEAT
@@ -39,46 +55,47 @@ class EverquestLogFile:
         # timezone string for current computer
         self.current_tzname = time.tzname[time.daylight]
 
+
     # build the file name
     # call this anytime that the filename attributes change
-    def build_filename(self, charname):
+    def build_filename(self, charname: str) -> str:
         rv = self.base_directory + self.logs_directory + 'eqlog_' + charname + '_' + self.server_name + '.txt'
         return rv
 
     # is the file being actively parsed
-    def set_parsing(self):
-        self.parsing.set()
+    def set_parsing(self) -> None:
+        self._parsing.set()
 
-    def clear_parsing(self):
-        self.parsing.clear()
+    def clear_parsing(self) -> None:
+        self._parsing.clear()
 
-    def is_parsing(self):
-        return self.parsing.is_set()
+    def is_parsing(self) -> bool:
+        return self._parsing.is_set()
 
     # open the file with most recent mod time (i.e. latest)
     # returns True if a new file was opened, False otherwise
-    def open_latest(self, author, seek_end=True):
+    def open_latest(self, seek_end=True) -> bool:
         # get a list of all log files, and sort on mod time, latest at top
         mask = self.base_directory + self.logs_directory + 'eqlog_*_' + self.server_name + '.txt'
         files = glob.glob(mask)
         files.sort(key=os.path.getmtime, reverse=True)
 
-        # foo - what if there are no files in the list?
+        # todo foo - what if there are no files in the list?
         latest_file = files[0]
 
         # extract the character name from the filename
-        # note that windows pathnames must usess double-backslashes in the pathname
+        # note that windows pathnames must use double-backslashes in the pathname
         # note that backslashes in regular expressions are double-double-backslashes
         # this expression replaces double \\ with quadruple \\\\, as well as the filename mask asterisk to a
         # named regular expression
-        charname_regexp = mask.replace('\\', '\\\\').replace('eqlog_*_', 'eqlog_(?P<charname>[\w ]+)_')
+        charname_regexp = mask.replace('\\', '\\\\').replace('eqlog_*_', 'eqlog_(?P<charname>[\\w ]+)_')
         m = re.match(charname_regexp, latest_file)
         char_name = m.group('charname')
 
         rv = False
 
         # figure out what to do
-        # if we are already parsing a file, and it is the lastest file - do nothing
+        # if we are already parsing a file, and it is the latest file - do nothing
         if self.is_parsing() and (self.filename == latest_file):
             # do nothing
             pass
@@ -87,41 +104,160 @@ class EverquestLogFile:
         elif self.is_parsing() and (self.filename != latest_file):
             # stop parsing old and open the new file
             self.close()
-            rv = self.open(author, char_name, latest_file, seek_end)
+            rv = self.open(char_name, latest_file, seek_end)
 
         # if we aren't parsing any file, then open latest
         elif not self.is_parsing():
-            rv = self.open(author, char_name, latest_file, seek_end)
+            rv = self.open(char_name, latest_file, seek_end)
 
         return rv
 
     # open the file
     # seek file position to end of file if passed parameter 'seek_end' is true
-    def open(self, author, charname, filename, seek_end=True):
+    def open(self, charname: str, filename: str, seek_end=True) -> bool:
         try:
             self.file = open(filename, 'r', errors='ignore')
             if seek_end:
                 self.file.seek(0, os.SEEK_END)
 
-            self.author = author
             self.char_name = charname
             self.filename = filename
             self.set_parsing()
             return True
         except OSError as err:
-            print("OS error: {0}".format(err))
-            print('Unable to open filename: [{}]'.format(filename))
+            starprint('OS error: {0}'.format(err))
+            starprint('Unable to open filename: [{}]'.format(filename))
             return False
 
     # close the file
-    def close(self):
+    def close(self) -> None:
         self.file.close()
-        self.author = ''
         self.clear_parsing()
 
     # get the next line
-    def readline(self):
+    def readline(self) -> str or None:
         if self.is_parsing():
             return self.file.readline()
         else:
             return None
+
+    #
+    # call this method to kick off the parsing thread
+    #
+    def go(self) -> bool:
+
+        rv = False
+
+        # already parsing?
+        if self.is_parsing():
+            starprint('Already parsing character log for: [{}]'.format(self.char_name))
+
+        else:
+
+            # use a back door to force the system to read a test file
+            if TEST_ELF:
+
+                # read a sample file for testing
+                filename = 'test_log.txt'
+
+                # start parsing, but in this case, start reading from the beginning of the file,
+                # rather than the end (default)
+                rv = self.open('Testing', filename, seek_end=False)
+
+            # open the latest file
+            else:
+                # open the latest file, and kick off the parsing process
+                rv = self.open_latest()
+
+            # if the log file was successfully opened, then initiate parsing
+            if rv:
+
+                # status message
+                starprint('Now parsing character log for: [{}]'.format(self.char_name))
+
+                # if the thread is not already running,
+                # create the background thread and kick it off
+                if not self._started.is_set():
+                    self.start()
+
+            else:
+                starprint('ERROR: Could not open character log file for: [{}]'.format(self.char_name))
+                starprint('Log filename: [{}]'.format(self.filename))
+
+        return rv
+
+    def stop(self) -> None:
+        self.close()
+
+    # override the thread.run() method
+    # this method will execute in its own thread
+    def run(self) -> None:
+
+        print('entering run()')
+
+        # run forever
+        while True:
+
+            # process the log file lines here
+            if self.is_parsing():
+
+                # read a line
+                line = self.readline()
+                now = time.time()
+                if line:
+                    self.prevtime = now
+
+                    # process this line
+                    self.process_line(line)
+
+                else:
+
+                    # don't check the heartbeat if we are just testing
+                    if not TEST_ELF:
+
+                        # check the heartbeat.  Has our logfile gone silent?
+                        elapsed_seconds = (now - self.prevtime)
+
+                        if elapsed_seconds > self.heartbeat:
+                            starprint('[{}] heartbeat over limit, elapsed seconds = {:.2f}'.format(self.char_name, elapsed_seconds))
+                            self.prevtime = now
+
+                            # attempt to open latest log file - returns True if a new logfile is opened
+                            if self.open_latest():
+                                starprint('Now parsing character log for: [{}]'.format(self.char_name))
+
+                    # if we didn't read a line, pause just for a 100 msec blink
+                    time.sleep(0.1)
+
+
+    # virtual method, to be overridden in derived classes to do whatever specialized
+    # parsing is required for this application.
+    # Default behavior is to simply print() the line, with a * star at the start
+    def process_line(self, line: str) -> None:
+        print(line, end='')
+
+
+#
+# test driver
+#
+def main():
+    print('creating and starting elf, then sleeping for 20')
+    elf = EverquestLogFile()
+    elf.go()
+    time.sleep(20)
+
+    # test the ability to stop and restart the parsing
+    print('stopping elf, then sleeping for 5')
+    elf.stop()
+    time.sleep(5)
+
+    print('restarting elf, then sleeping for 30')
+    elf.go()
+    time.sleep(30)
+
+    print('done done')
+    elf.stop()
+
+
+if __name__ == '__main__':
+    main()
