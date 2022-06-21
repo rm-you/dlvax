@@ -10,10 +10,10 @@ def get_eqgame_pid_list() -> list[int]:
     # use wmic utility to get list of processes
     # data comes back in a binary block, with individual lines separated by b'\r\r\n'
     # the output of this can be seen by entering 'wmic process list brief' at the command line
-    data = subprocess.check_output(['wmic', 'process', 'list', 'brief'])
+    lines = subprocess.check_output(['wmic', 'process', 'list', 'brief'])
 
     # split the block into individual lines
-    data_list = data.split(b'\r\r\n')
+    line_list = lines.split(b'\r\r\n')
 
     # get each line, and then split it into components
     # 0: HandleCount
@@ -22,7 +22,7 @@ def get_eqgame_pid_list() -> list[int]:
     # 3: ProcessId
     # 4: ThreadCount
     # 5: WorkingSetSize
-    for line in data_list:
+    for line in line_list:
         # now split each line into fields
         field_list = line.split()
         if len(field_list) == 6:
