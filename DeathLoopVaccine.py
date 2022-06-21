@@ -35,9 +35,8 @@ def main():
 
     dlv = DeathLoopVaccine()
 
-
     # note that as soon as the main thread ends, so will the child threads
-    while(True):
+    while True:
         pass
 
 

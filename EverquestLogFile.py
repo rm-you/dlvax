@@ -42,17 +42,14 @@ class EverquestLogFile(threading.Thread):
         self.filename = self.build_filename(self.char_name)
         self.file = None
 
-        self.parsing = threading.Event()
-        self.parsing.clear()
+        self._parsing = threading.Event()
+        self._parsing.clear()
 
         self.prevtime = time.time()
         self.heartbeat = myconfig.HEARTBEAT
 
         # timezone string for current computer
         self.current_tzname = time.tzname[time.daylight]
-
-        # start parsing
-        self.begin_parsing()
 
     # build the file name
     # call this anytime that the filename attributes change
@@ -62,13 +59,13 @@ class EverquestLogFile(threading.Thread):
 
     # is the file being actively parsed
     def set_parsing(self) -> None:
-        self.parsing.set()
+        self._parsing.set()
 
     def clear_parsing(self) -> None:
-        self.parsing.clear()
+        self._parsing.clear()
 
     def is_parsing(self) -> bool:
-        return self.parsing.is_set()
+        return self._parsing.is_set()
 
     # open the file with most recent mod time (i.e. latest)
     # returns True if a new file was opened, False otherwise
@@ -142,7 +139,7 @@ class EverquestLogFile(threading.Thread):
     #
     # call this method to kick off the parsing thread
     #
-    def begin_parsing(self) -> bool:
+    def go(self) -> bool:
 
         rv = False
 
@@ -174,7 +171,9 @@ class EverquestLogFile(threading.Thread):
                 starprint('Now parsing character log for: [{}]'.format(self.char_name))
 
                 # create the background process and kick it off
-                self.start()
+                # if not self.get_ident():
+                if not self._started.is_set():
+                    self.start()
 
             else:
                 starprint('ERROR: Could not open character log file for: [{}]'.format(self.char_name))
@@ -182,52 +181,50 @@ class EverquestLogFile(threading.Thread):
 
         return rv
 
-    #
+    def stop(self) -> None:
+        self.close()
+
     # override the thread.run() method
     # this method will execute in its own thread
-    #
     def run(self) -> None:
 
-        starprint('----------------------------Parsing Started----------------------------')
+        # run forever
+        while True:
 
-        # process the log file lines here
-        while self.is_parsing():
+            # process the log file lines here
+            if self.is_parsing():
 
-            # read a line
-            line = self.readline()
-            now = time.time()
-            if line:
-                self.prevtime = now
+                # read a line
+                line = self.readline()
+                now = time.time()
+                if line:
+                    self.prevtime = now
 
-                # process this line
-                self.process_line(line)
+                    # process this line
+                    self.process_line(line)
 
-            else:
+                else:
 
-                # don't check the heartbeat if we are just testing
-                if not TEST_ELF:
+                    # don't check the heartbeat if we are just testing
+                    if not TEST_ELF:
 
-                    # check the heartbeat.  Has our logfile gone silent?
-                    elapsed_seconds = (now - self.prevtime)
+                        # check the heartbeat.  Has our logfile gone silent?
+                        elapsed_seconds = (now - self.prevtime)
 
-                    if elapsed_seconds > self.heartbeat:
-                        starprint('Heartbeat over limit, elapsed seconds = {:.2f}'.format(elapsed_seconds))
-                        self.prevtime = now
+                        if elapsed_seconds > self.heartbeat:
+                            starprint('[{}] heartbeat over limit, elapsed seconds = {:.2f}'.format(self.char_name, elapsed_seconds))
+                            self.prevtime = now
 
-                        # attempt to open latest log file - returns True if a new logfile is opened
-                        if self.open_latest():
-                            starprint('Now parsing character log for: [{}]'.format(self.char_name))
+                            # attempt to open latest log file - returns True if a new logfile is opened
+                            if self.open_latest():
+                                starprint('Now parsing character log for: [{}]'.format(self.char_name))
 
-                # if we didn't read a line, pause just for a 100 msec blink
-                time.sleep(0.1)
+                    # if we didn't read a line, pause just for a 100 msec blink
+                    time.sleep(0.1)
 
-        starprint('----------------------------Parsing Stopped----------------------------')
-
-    #
     # virtual method, to be overridden in derived classes to do whatever specialized
     # parsing is required for this application.
     # Default behavior is to simply print() the line, with a * star at the start
-    #
     def process_line(self, line: str) -> None:
         print(line, end='')
 
@@ -236,7 +233,22 @@ class EverquestLogFile(threading.Thread):
 # test driver
 #
 def main():
+    print('creating and starting elf, then sleeping for 20')
     elf = EverquestLogFile()
+    elf.go()
+    time.sleep(20)
+
+    # test the ability to stop and restart the parsing
+    print('stopping elf, then sleeping for 5')
+    elf.stop()
+    time.sleep(5)
+
+    print('restarting elf, then sleeping for 30')
+    elf.go()
+    time.sleep(30)
+
+    print('done done')
+    elf.stop()
 
 
 if __name__ == '__main__':
