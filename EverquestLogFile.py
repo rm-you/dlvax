@@ -193,8 +193,6 @@ class EverquestLogFile(threading.Thread):
     # this method will execute in its own thread
     def run(self) -> None:
 
-        print('entering run()')
-
         # run forever
         while True:
 

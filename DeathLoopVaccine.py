@@ -1,4 +1,36 @@
+import subprocess
+
 import EverquestLogFile
+
+
+# get list of process ID's for eqgame.exe
+def get_eqgame_pid_list() -> list[int]:
+    pid_list = list()
+
+    # use wmic utility to get list of processes
+    # data comes back in a binary block, with individual lines separated by b'\r\r\n'
+    # the output of this can be seen by entering 'wmic process list brief' at the command line
+    data = subprocess.check_output(['wmic', 'process', 'list', 'brief'])
+
+    # split the block into individual lines
+    data_list = data.split(b'\r\r\n')
+
+    # get each line, and then split it into components
+    # 0: HandleCount
+    # 1: Name
+    # 2: Priority
+    # 3: ProcessId
+    # 4: ThreadCount
+    # 5: WorkingSetSize
+    for line in data_list:
+        # now split each line into fields
+        field_list = line.split()
+        if len(field_list) == 6:
+            if field_list[1] == b'eqgame.exe':
+                # print(f'{str(field_list[1], "utf-8)")}, {int(field_list[3])}')
+                pid_list.append(int(field_list[3]))
+
+    return pid_list
 
 #
 # simple utility to prevent Everquest Death Loops
@@ -27,6 +59,10 @@ class DeathLoopVaccine(EverquestLogFile.EverquestLogFile):
         super().process_line(line)
 
 
+
+
+
+
 def main():
 
     EverquestLogFile.starprint('')
@@ -35,6 +71,9 @@ def main():
 
     dlv = DeathLoopVaccine()
     dlv.go()
+
+    pid_list = get_eqgame_pid_list()
+    print(pid_list)
 
     # note that as soon as the main thread ends, so will the child threads
     while True:
