@@ -24,6 +24,10 @@ def starprint(line: str) -> None:
 #
 class EverquestLogFile(threading.Thread):
 
+    # type-hint reference to base class data member _started, to quiet PEP warning
+    # about unreferenced attribute
+    _started: threading.Event
+
     #
     # ctor
     #
@@ -50,6 +54,7 @@ class EverquestLogFile(threading.Thread):
 
         # timezone string for current computer
         self.current_tzname = time.tzname[time.daylight]
+
 
     # build the file name
     # call this anytime that the filename attributes change
@@ -170,8 +175,8 @@ class EverquestLogFile(threading.Thread):
                 # status message
                 starprint('Now parsing character log for: [{}]'.format(self.char_name))
 
-                # create the background process and kick it off
-                # if not self.get_ident():
+                # if the thread is not already running,
+                # create the background thread and kick it off
                 if not self._started.is_set():
                     self.start()
 
@@ -187,6 +192,8 @@ class EverquestLogFile(threading.Thread):
     # override the thread.run() method
     # this method will execute in its own thread
     def run(self) -> None:
+
+        print('entering run()')
 
         # run forever
         while True:
@@ -221,6 +228,7 @@ class EverquestLogFile(threading.Thread):
 
                     # if we didn't read a line, pause just for a 100 msec blink
                     time.sleep(0.1)
+
 
     # virtual method, to be overridden in derived classes to do whatever specialized
     # parsing is required for this application.
