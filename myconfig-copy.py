@@ -6,3 +6,7 @@ SERVER_NAME                 = 'P1999Green'
 
 # used in heartbeat test.  Max number of seconds of inactivity before it checks to see if a new file is being written to
 HEARTBEAT                   = 15
+
+# parameters that define a deathloop, i.e. 'x' deaths in 'y' seconds
+DEATHLOOP_DEATHS            = 4
+DEATHLOOP_SECONDS           = 120
