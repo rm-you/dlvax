@@ -3,8 +3,81 @@ import subprocess
 import EverquestLogFile
 
 
-# get list of process ID's for eqgame.exe
+#
+# simple utility to prevent Everquest Death Loop
+#
+# In this case, we will define a death loop as any time a player experiences
+# 'D' deaths in 'M' minutes, and no player activity during that time
+#
+class DeathLoopVaccine(EverquestLogFile.EverquestLogFile):
+    """
+    the class derives from the EverquestLogFile class and relies on the base class
+    for the log parsing functions.
+
+    the class overloads the process_line() method to customize the parsing for this particular need
+    """
+
+    def __init__(self):
+        """
+        ctor
+        """
+        # parent ctor
+        super().__init__()
+
+    def process_line(self, line):
+        """
+        this method gets called once for each parsed line
+
+        :param line: string with a single line from the logfile
+        """
+        # start with base class behavior
+        super().process_line(line)
+
+        # check for death messages
+        self.check_death_message(line)
+
+        # check for indications the player is really not AFK
+        self.check_not_afk(line)
+
+        # are we death looping?  if so, kill the process
+        self.deathloop_response()
+
+    def check_death_message(self, line: str) -> None:
+        """
+        check for indications the player just died
+
+        :param line: string with a single line from the logfile
+        """
+        pass
+
+    def check_not_afk(self, line: str) -> None:
+        """
+        check for indications the player is really not AFK
+
+        :param line: string with a single line from the logfile
+        """
+        pass
+
+    def deathloop_response(self) -> None:
+        """
+        are we death looping?  if so, kill the process
+        """
+
+        pass
+
+
+#################################################################################################
+#
+# standalone functions
+#
+
 def get_eqgame_pid_list() -> list[int]:
+    """
+    get list of process ID's for eqgame.exe.
+    returns a list of process ID's (in case multiple versions of eqgame.exe are somehow running)
+
+    :return: list of process ID integers
+    """
     pid_list = list()
 
     # use wmic utility to get list of processes
@@ -32,39 +105,11 @@ def get_eqgame_pid_list() -> list[int]:
 
     return pid_list
 
-#
-# simple utility to prevent Everquest Death Loops
-#
-# parses log file, and if it detects D deaths in M minutes, and no player activity in between, it 
-# will kill the eqgame.exe process
-#
 
-#
-# create a class for this application, that derives from the EverquestLogFile class
-# overload the process_line() method to customize the application's response to parsed
-# lines from the log file.
-#
-
-
-class DeathLoopVaccine(EverquestLogFile.EverquestLogFile):
-
-    # ctor
-    def __init__(self):
-        # parent ctor
-        super().__init__()
-
-    # custom parsing logic here
-    # this method gets called once for each parsed line
-    def process_line(self, line):
-        super().process_line(line)
-
-
-
-
+#################################################################################################
 
 
 def main():
-
     EverquestLogFile.starprint('')
     EverquestLogFile.starprint('DeathLoopVaccine - Help prevent DeathLoop disease')
     EverquestLogFile.starprint('')
@@ -72,8 +117,8 @@ def main():
     dlv = DeathLoopVaccine()
     dlv.go()
 
-    pid_list = get_eqgame_pid_list()
-    print(pid_list)
+    # pid_list = get_eqgame_pid_list()
+    # print(pid_list)
 
     # note that as soon as the main thread ends, so will the child threads
     while True:
