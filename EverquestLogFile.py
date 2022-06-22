@@ -268,7 +268,7 @@ class EverquestLogFile(threading.Thread):
 
         :param line: line from logfile to be processed
         """
-        print(line, end='')
+        print(line.rstrip())
 
 
 #################################################################################################
@@ -282,7 +282,7 @@ def starprint(line: str) -> None:
 
     :param line: line to be printed
     """
-    print(f'** {line:<100} **')
+    print(f'** {line.rstrip():<100} **')
 
 
 #
