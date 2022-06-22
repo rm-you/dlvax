@@ -12,27 +12,24 @@ TEST_ELF = False
 # TEST_ELF = True
 
 
-#
-# utility function to print with leading and trailing ** indicators
-#
-def starprint(line: str) -> None:
-    print(f'** {line:<100} **')
-
-
-#
-# class to encapsulate log file operations
-#
 class EverquestLogFile(threading.Thread):
+    """
+    class to encapsulate Everquest log file operations.
+    This class is intended as a base class for any
+    child class that needs log parsing abilities.
+
+    The custom log parsing logic in the child class is accomplished by
+    overloading the process_line() method
+    """
 
     # type-hint reference to base class data member _started, to quiet PEP warning
     # about unreferenced attribute
     _started: threading.Event
 
-    #
-    # ctor
-    #
     def __init__(self) -> None:
-
+        """
+        ctor
+        """
         # parent ctor
         # the daemon=True parameter causes this child thread object to terminate
         # when the parent thread terminates
@@ -55,26 +52,44 @@ class EverquestLogFile(threading.Thread):
         # timezone string for current computer
         self.current_tzname = time.tzname[time.daylight]
 
-
-    # build the file name
-    # call this anytime that the filename attributes change
     def build_filename(self, charname: str) -> str:
+        """
+        build the file name.
+        call this anytime that the filename attributes change
+
+        :param charname: Everquest character log to be parsed
+        :return: complete filename
+        """
         rv = self.base_directory + self.logs_directory + 'eqlog_' + charname + '_' + self.server_name + '.txt'
         return rv
 
-    # is the file being actively parsed
     def set_parsing(self) -> None:
+        """
+        called when parsing is active
+        """
         self._parsing.set()
 
     def clear_parsing(self) -> None:
+        """
+        called when parsing is no longer active
+        """
         self._parsing.clear()
 
     def is_parsing(self) -> bool:
+        """
+        is the file being actively parsed
+
+        :return: boolean True/False
+        """
         return self._parsing.is_set()
 
-    # open the file with most recent mod time (i.e. latest)
-    # returns True if a new file was opened, False otherwise
     def open_latest(self, seek_end=True) -> bool:
+        """
+        open the file with most recent mod time (i.e. latest).
+
+        :param seek_end:  True if parsing is to begin at the end of the file, False if at the beginning
+        :return: True if a new file was opened, False otherwise
+        """
         # get a list of all log files, and sort on mod time, latest at top
         mask = self.base_directory + self.logs_directory + 'eqlog_*_' + self.server_name + '.txt'
         files = glob.glob(mask)
@@ -112,9 +127,16 @@ class EverquestLogFile(threading.Thread):
 
         return rv
 
-    # open the file
-    # seek file position to end of file if passed parameter 'seek_end' is true
     def open(self, charname: str, filename: str, seek_end=True) -> bool:
+        """
+        open the file.
+        seek file position to end of file if passed parameter 'seek_end' is true
+
+        :param charname: character name whose log file is to be opened
+        :param filename: full log filename
+        :param seek_end:  True if parsing is to begin at the end of the file, False if at the beginning
+        :return: True if a new file was opened, False otherwise
+        """
         try:
             self.file = open(filename, 'r', errors='ignore')
             if seek_end:
@@ -129,23 +151,29 @@ class EverquestLogFile(threading.Thread):
             starprint('Unable to open filename: [{}]'.format(filename))
             return False
 
-    # close the file
     def close(self) -> None:
+        """
+        close the file
+        """
         self.file.close()
         self.clear_parsing()
 
-    # get the next line
     def readline(self) -> str or None:
+        """
+        get the next line
+        :return: a string containing the next line, or None if no new lines to be read
+        """
         if self.is_parsing():
             return self.file.readline()
         else:
             return None
 
-    #
-    # call this method to kick off the parsing thread
-    #
     def go(self) -> bool:
+        """
+        call this method to kick off the parsing thread
 
+        :return: True if file is opened successfully for parsing
+        """
         rv = False
 
         # already parsing?
@@ -187,12 +215,16 @@ class EverquestLogFile(threading.Thread):
         return rv
 
     def stop(self) -> None:
+        """
+        call this function when ready to stop (opposite of go() function)
+        """
         self.close()
 
-    # override the thread.run() method
-    # this method will execute in its own thread
     def run(self) -> None:
-
+        """
+        override the thread.run() method
+        this method will execute in its own thread
+        """
         # run forever
         while True:
 
@@ -227,12 +259,30 @@ class EverquestLogFile(threading.Thread):
                     # if we didn't read a line, pause just for a 100 msec blink
                     time.sleep(0.1)
 
-
-    # virtual method, to be overridden in derived classes to do whatever specialized
-    # parsing is required for this application.
-    # Default behavior is to simply print() the line, with a * star at the start
     def process_line(self, line: str) -> None:
+        """
+        virtual method, to be overridden in derived classes to do whatever specialized
+        parsing is required for that application.
+
+        Default behavior is to simply print() the line
+
+        :param line: line from logfile to be processed
+        """
         print(line, end='')
+
+
+#################################################################################################
+#
+# standalone functions
+#
+
+def starprint(line: str) -> None:
+    """
+    utility function to print with leading and trailing ** indicators
+
+    :param line: line to be printed
+    """
+    print(f'** {line:<100} **')
 
 
 #
