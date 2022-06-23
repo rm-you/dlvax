@@ -52,14 +52,14 @@ class DeathLoopVaccine(EverquestLogFile.EverquestLogFile):
 
         # the safety catch on the kill-gun.  Set it to True to prevent actually killing
         # the eqgame.exe process.  Used for testing.
-        self.kill_disarmed = False
+        self.kill_armed = True
 
     def reset(self) -> None:
         """
         Utility function to clear the death_list and reset the kill safety
         """
         self.death_list.clear()
-        self.kill_disarmed = False
+        self.kill_armed = True
 
     def process_line(self, line):
         """
@@ -68,15 +68,12 @@ class DeathLoopVaccine(EverquestLogFile.EverquestLogFile):
         :param line: string with a single line from the logfile
         """
         # start with base class behavior
-        super().process_line(line)
-
         # check for death messages
-        self.check_for_death(line)
-
         # check for indications the player is really not AFK
-        self.check_not_afk(line)
-
         # are we death looping?  if so, kill the process
+        super().process_line(line)
+        self.check_for_death(line)
+        self.check_not_afk(line)
         self.deathloop_response()
 
     def check_for_death(self, line: str) -> None:
@@ -106,7 +103,7 @@ class DeathLoopVaccine(EverquestLogFile.EverquestLogFile):
             # since this is just for testing, put the safety on the kill-gun
             self.death_list.append(line)
             EverquestLogFile.starprint(f'DeathLoopVaccine:  Death count = {len(self.death_list)}')
-            self.kill_disarmed = True
+            self.kill_armed = False
 
         # create a datetime object for this line, using the very capable strptime() parsing function built into the datetime module
         now = datetime.strptime(line[0:26], '[%a %b %d %H:%M:%S %Y]')
@@ -198,7 +195,10 @@ class DeathLoopVaccine(EverquestLogFile.EverquestLogFile):
             # kill the eqgame.exe process / processes
             for pid in pid_list:
                 EverquestLogFile.starprint(f'Killing process [{pid}]')
-                if not self.kill_disarmed:
+
+                # for testing the actual kill process, uncomment the following line
+                # self.kill_armed = True
+                if self.kill_armed:
                     os.kill(pid, signal.SIGKILL)
 
             # purge any death messages from the list
