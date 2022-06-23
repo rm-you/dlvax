@@ -112,71 +112,77 @@ class DeathLoopVaccine(EverquestLogFile.EverquestLogFile):
             EverquestLogFile.starprint(f'DeathLoopVaccine:  Death count = {len(self._death_list)}')
             self._kill_armed = False
 
-        # create a datetime object for this line, using the very capable datetime.strptime()
-        now = datetime.strptime(line[0:26], '[%a %b %d %H:%M:%S %Y]')
+        # only do the list-purging if there are already some death messages in the list, else skip this
+        if len(self._death_list) > 0:
 
-        # now purge any death messages that are too old
-        done = False
-        while not done:
-            # if the list is empty, we're done
-            if len(self._death_list) == 0:
-                self.reset()
-                done = True
-            # if the list is not empty, check if we need to purge some old entries
-            else:
-                oldest_line = self._death_list[0]
-                oldest_time = datetime.strptime(oldest_line[0:26], '[%a %b %d %H:%M:%S %Y]')
-                elapsed_seconds = now - oldest_time
+            # create a datetime object for this line, using the very capable datetime.strptime()
+            now = datetime.strptime(line[0:26], '[%a %b %d %H:%M:%S %Y]')
 
-                if elapsed_seconds.total_seconds() > myconfig.DEATHLOOP_SECONDS:
-                    # that death message is too old, purge it
-                    self._death_list.pop(0)
-                    EverquestLogFile.starprint(f'DeathLoopVaccine:  Death count = {len(self._death_list)}')
-                else:
-                    # the oldest death message is inside the window, so we're done purging
+            # now purge any death messages that are too old
+            done = False
+            while not done:
+                # if the list is empty, we're done
+                if len(self._death_list) == 0:
+                    self.reset()
                     done = True
+                # if the list is not empty, check if we need to purge some old entries
+                else:
+                    oldest_line = self._death_list[0]
+                    oldest_time = datetime.strptime(oldest_line[0:26], '[%a %b %d %H:%M:%S %Y]')
+                    elapsed_seconds = now - oldest_time
+
+                    if elapsed_seconds.total_seconds() > myconfig.DEATHLOOP_SECONDS:
+                        # that death message is too old, purge it
+                        self._death_list.pop(0)
+                        EverquestLogFile.starprint(f'DeathLoopVaccine:  Death count = {len(self._death_list)}')
+                    else:
+                        # the oldest death message is inside the window, so we're done purging
+                        done = True
 
     def check_not_afk(self, line: str) -> None:
         """
-        check for indications the player is really not AFK
+        check for "proof of life" indications the player is really not AFK
 
         :param line: string with a single line from the logfile
         """
 
-        # check for proof of life, things that indicate the player is not actually AFK
-        # begin by assuming the player is AFK
-        afk = True
+        # only do the proof of life checks if there are already some death messages in the list, else skip this
+        if len(self._death_list) > 0:
 
-        # cut off the leading date-time stamp info
-        trunc_line = line[27:]
+            # check for proof of life, things that indicate the player is not actually AFK
+            # begin by assuming the player is AFK
+            afk = True
 
-        # does this line contain a proof of life - casting
-        regexp = r'^You begin casting'
-        m = re.match(regexp, trunc_line)
-        if m:
-            # player is not AFK
-            afk = False
-            EverquestLogFile.starprint(f'DeathLoopVaccine:  Player Not AFK: {line}')
+            # cut off the leading date-time stamp info
+            trunc_line = line[27:]
 
-        # does this line contain a proof of life - tells
-        regexp = r'^You told'
-        m = re.match(regexp, trunc_line)
-        if m:
-            # player is not AFK
-            afk = False
-            EverquestLogFile.starprint(f'DeathLoopVaccine:  Player Not AFK: {line}')
+            # does this line contain a proof of life - casting
+            regexp = r'^You begin casting'
+            m = re.match(regexp, trunc_line)
+            if m:
+                # player is not AFK
+                afk = False
+                EverquestLogFile.starprint(f'DeathLoopVaccine:  Player Not AFK: {line}')
 
-        # does this line contain a proof of life - melee
-        regexp = r'^You( try to)? (hit|slash|pierce|crush|claw|bite|sting|maul|gore|punch|kick|backstab|bash)'
-        m = re.match(regexp, trunc_line)
-        if m:
-            # player is not AFK
-            afk = False
-            EverquestLogFile.starprint(f'DeathLoopVaccine:  Player Not AFK: {line}')
+            # does this line contain a proof of life - communication
+            regexp = f'^(You told|You say|You tell|You auction|You shout|{self.char_name} ->)'
+            m = re.match(regexp, trunc_line)
+            if m:
+                # player is not AFK
+                afk = False
+                EverquestLogFile.starprint(f'DeathLoopVaccine:  Player Not AFK: {line}')
 
-        # if they are not AFK, then go ahead and purge any death messages from the list
-        if not afk:
-            self.reset()
+            # does this line contain a proof of life - melee
+            regexp = r'^You( try to)? (hit|slash|pierce|crush|claw|bite|sting|maul|gore|punch|kick|backstab|bash)'
+            m = re.match(regexp, trunc_line)
+            if m:
+                # player is not AFK
+                afk = False
+                EverquestLogFile.starprint(f'DeathLoopVaccine:  Player Not AFK: {line}')
+
+            # if they are not AFK, then go ahead and purge any death messages from the list
+            if not afk:
+                self.reset()
 
     def deathloop_response(self) -> None:
         """
