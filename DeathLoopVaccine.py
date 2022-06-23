@@ -1,4 +1,6 @@
 import re
+import os
+import signal
 import subprocess
 from datetime import datetime
 
@@ -9,8 +11,26 @@ import EverquestLogFile
 #
 # simple utility to prevent Everquest Death Loop
 #
-# In this case, we will define a death loop as any time a player experiences
-# 'x' deaths in 'y' seconds, and no player activity during that time
+# The utility functions by parsing the current (most recent) Everquest log file, and if it detects
+# Death Loop symptoms, it will respond by initiating a system process kill of all "eqgame.exe"
+# processes (there should usually only be one).
+#
+# We will define a death loop as any time a player experiences X deaths in Y seconds, and no player
+# activity during that time.  The values for X and Y are configurable, via the myconfig.py file.
+#
+# For testing purposes, there is a back door feature, controlled by sending a tell to the following
+# non-existent player:
+#
+#   death_loop:     Simulates a player death.
+#
+#                   Note however that this also sets a flag that disarms the conceptual
+#                   "process-killer gun", which will allow every bit of the code to
+#                   execute and be tested, but will stop short of actually killing any
+#                   process
+#
+#                   The "process-killer gun" will then be armed again after the simulated
+#                   player deaths trigger the simulated process kill, or after any simulated
+#                   player death events "scroll off" the death loop monitoring window.
 #
 class DeathLoopVaccine(EverquestLogFile.EverquestLogFile):
     """
@@ -32,14 +52,14 @@ class DeathLoopVaccine(EverquestLogFile.EverquestLogFile):
 
         # the safety catch on the kill-gun.  Set it to True to prevent actually killing
         # the eqgame.exe process.  Used for testing.
-        self.kill_safety = False
+        self.kill_disarmed = False
 
     def reset(self) -> None:
         """
         Utility function to clear the death_list and reset the kill safety
         """
         self.death_list.clear()
-        self.kill_safety = False
+        self.kill_disarmed = False
 
     def process_line(self, line):
         """
@@ -71,7 +91,7 @@ class DeathLoopVaccine(EverquestLogFile.EverquestLogFile):
         trunc_line = line[27:]
 
         # does this line contain a death message
-        slain_regexp = r'^You have been slain by'
+        slain_regexp = r'^You have been slain'
         m = re.match(slain_regexp, trunc_line)
         if m:
             # add this message to the list of death messages
@@ -86,7 +106,7 @@ class DeathLoopVaccine(EverquestLogFile.EverquestLogFile):
             # since this is just for testing, put the safety on the kill-gun
             self.death_list.append(line)
             EverquestLogFile.starprint(f'DeathLoopVaccine:  Death count = {len(self.death_list)}')
-            self.kill_safety = True
+            self.kill_disarmed = True
 
         # create a datetime object for this line, using the very capable strptime() parsing function built into the datetime module
         now = datetime.strptime(line[0:26], '[%a %b %d %H:%M:%S %Y]')
@@ -120,8 +140,34 @@ class DeathLoopVaccine(EverquestLogFile.EverquestLogFile):
         """
 
         # check for proof of life, things that indicate the player is not actually AFK
-        # todo add checks for proof of life
         afk = True
+
+        # cut off the leading date-time stamp info
+        trunc_line = line[27:]
+
+        # does this line contain a proof of life - casting
+        regexp = r'^You begin casting'
+        m = re.match(regexp, trunc_line)
+        if m:
+            # player is not AFK
+            afk = False
+            EverquestLogFile.starprint(f'DeathLoopVaccine:  Player Not AFK: {line}')
+
+        # does this line contain a proof of life - tells
+        regexp = r'^You told'
+        m = re.match(regexp, trunc_line)
+        if m:
+            # player is not AFK
+            afk = False
+            EverquestLogFile.starprint(f'DeathLoopVaccine:  Player Not AFK: {line}')
+
+        # does this line contain a proof of life - melee
+        regexp = r'^You( try to)? (hit|slash|pierce|crush|claw|bite|sting|maul|gore|punch|kick|backstab|bash)'
+        m = re.match(regexp, trunc_line)
+        if m:
+            # player is not AFK
+            afk = False
+            EverquestLogFile.starprint(f'DeathLoopVaccine:  Player Not AFK: {line}')
 
         # if they are not AFK, then go ahead and purge any death messages from the list
         if not afk:
@@ -138,17 +184,22 @@ class DeathLoopVaccine(EverquestLogFile.EverquestLogFile):
             EverquestLogFile.starprint('---------------------------------------------------')
             EverquestLogFile.starprint('DeathLoopVaccine - Killing all eqgame.exe processes')
             EverquestLogFile.starprint('---------------------------------------------------')
+            EverquestLogFile.starprint('DeathLoopVaccine has detected deathloop symptoms:')
+            EverquestLogFile.starprint(f'    {myconfig.DEATHLOOP_DEATHS} deaths in less than '
+                                       f'{myconfig.DEATHLOOP_SECONDS} seconds, with no player activity')
 
             # get the list of eqgame.exe process ID's
             pid_list = get_eqgame_pid_list()
-            EverquestLogFile.starprint(f'DeathLoopVaccine:  eqgame.exe process id list = {pid_list}')
-            EverquestLogFile.starprint('DeathLoopVaccine - Death Messages:')
+            EverquestLogFile.starprint('Death Messages:')
             for line in self.death_list:
                 EverquestLogFile.starprint('    ' + line)
+            EverquestLogFile.starprint(f'eqgame.exe process id list = {pid_list}')
 
             # kill the eqgame.exe process / processes
-            if not self.kill_safety:
-                pass
+            for pid in pid_list:
+                EverquestLogFile.starprint(f'Killing process [{pid}]')
+                if not self.kill_disarmed:
+                    os.kill(pid, signal.SIGKILL)
 
             # purge any death messages from the list
             self.reset()
