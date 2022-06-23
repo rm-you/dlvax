@@ -49,9 +49,6 @@ class EverquestLogFile(threading.Thread):
         self.prevtime = time.time()
         self.heartbeat = myconfig.HEARTBEAT
 
-        # timezone string for current computer
-        self.current_tzname = time.tzname[time.daylight]
-
     def build_filename(self, charname: str) -> str:
         """
         build the file name.

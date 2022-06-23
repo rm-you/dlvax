@@ -48,26 +48,33 @@ class DeathLoopVaccine(EverquestLogFile.EverquestLogFile):
         super().__init__()
 
         # list of death messages
-        self.death_list = list()
+        # this will function as a scrolling queue, with the oldest message at position 0,
+        # newest appended to the other end.  Older messages scroll off the list when more
+        # than myconfig.DEATHLOOP_SECONDS have elapsed.  The list is also flushed any time
+        # player activity is detected (i.e. player is not AFK).
+        #
+        # if/when the length of this list meets or exceeds myconfig.DEATHLOOP_DEATHS, then
+        # the deathloop response is triggered
+        self._death_list = list()
 
-        # the safety catch on the kill-gun.  Set it to True to prevent actually killing
-        # the eqgame.exe process.  Used for testing.
-        self.kill_armed = True
+        # flag indicating whether the "process killer" gun is armed
+        self._kill_armed = True
 
     def reset(self) -> None:
         """
-        Utility function to clear the death_list and reset the kill safety
+        Utility function to clear the death_list and reset the armed flag
         """
-        self.death_list.clear()
-        self.kill_armed = True
+        self._death_list.clear()
+        self._kill_armed = True
 
     def process_line(self, line):
         """
-        this method gets called once for each parsed line
+        This method gets called by the base class parsing thread once for each parsed line.
+        We overload it here to perform our special case parsing tasks.
 
         :param line: string with a single line from the logfile
         """
-        # start with base class behavior
+        # start with base class behavior, i.e. print the line to screen
         # check for death messages
         # check for indications the player is really not AFK
         # are we death looping?  if so, kill the process
@@ -92,41 +99,41 @@ class DeathLoopVaccine(EverquestLogFile.EverquestLogFile):
         m = re.match(slain_regexp, trunc_line)
         if m:
             # add this message to the list of death messages
-            self.death_list.append(line)
-            EverquestLogFile.starprint(f'DeathLoopVaccine:  Death count = {len(self.death_list)}')
+            self._death_list.append(line)
+            EverquestLogFile.starprint(f'DeathLoopVaccine:  Death count = {len(self._death_list)}')
 
         # a way to test - send a tell to death_loop
         slain_regexp = r'^death_loop'
         m = re.match(slain_regexp, trunc_line)
         if m:
             # add this message to the list of death messages
-            # since this is just for testing, put the safety on the kill-gun
-            self.death_list.append(line)
-            EverquestLogFile.starprint(f'DeathLoopVaccine:  Death count = {len(self.death_list)}')
-            self.kill_armed = False
+            # since this is just for testing, disarm the kill-gun
+            self._death_list.append(line)
+            EverquestLogFile.starprint(f'DeathLoopVaccine:  Death count = {len(self._death_list)}')
+            self._kill_armed = False
 
-        # create a datetime object for this line, using the very capable strptime() parsing function built into the datetime module
+        # create a datetime object for this line, using the very capable datetime.strptime()
         now = datetime.strptime(line[0:26], '[%a %b %d %H:%M:%S %Y]')
 
         # now purge any death messages that are too old
         done = False
         while not done:
             # if the list is empty, we're done
-            if len(self.death_list) == 0:
+            if len(self._death_list) == 0:
                 self.reset()
                 done = True
             # if the list is not empty, check if we need to purge some old entries
             else:
-                oldest_line = self.death_list[0]
+                oldest_line = self._death_list[0]
                 oldest_time = datetime.strptime(oldest_line[0:26], '[%a %b %d %H:%M:%S %Y]')
                 elapsed_seconds = now - oldest_time
 
                 if elapsed_seconds.total_seconds() > myconfig.DEATHLOOP_SECONDS:
                     # that death message is too old, purge it
-                    self.death_list.pop(0)
-                    EverquestLogFile.starprint(f'DeathLoopVaccine:  Death count = {len(self.death_list)}')
+                    self._death_list.pop(0)
+                    EverquestLogFile.starprint(f'DeathLoopVaccine:  Death count = {len(self._death_list)}')
                 else:
-                    # the oldest death message is inside the window, so we're done
+                    # the oldest death message is inside the window, so we're done purging
                     done = True
 
     def check_not_afk(self, line: str) -> None:
@@ -137,6 +144,7 @@ class DeathLoopVaccine(EverquestLogFile.EverquestLogFile):
         """
 
         # check for proof of life, things that indicate the player is not actually AFK
+        # begin by assuming the player is AFK
         afk = True
 
         # cut off the leading date-time stamp info
@@ -176,7 +184,7 @@ class DeathLoopVaccine(EverquestLogFile.EverquestLogFile):
         """
 
         # if the death_list contains more deaths than the limit, then trigger the process kill
-        if len(self.death_list) >= myconfig.DEATHLOOP_DEATHS:
+        if len(self._death_list) >= myconfig.DEATHLOOP_DEATHS:
 
             EverquestLogFile.starprint('---------------------------------------------------')
             EverquestLogFile.starprint('DeathLoopVaccine - Killing all eqgame.exe processes')
@@ -188,7 +196,7 @@ class DeathLoopVaccine(EverquestLogFile.EverquestLogFile):
             # get the list of eqgame.exe process ID's
             pid_list = get_eqgame_pid_list()
             EverquestLogFile.starprint('Death Messages:')
-            for line in self.death_list:
+            for line in self._death_list:
                 EverquestLogFile.starprint('    ' + line)
             EverquestLogFile.starprint(f'eqgame.exe process id list = {pid_list}')
 
@@ -196,10 +204,10 @@ class DeathLoopVaccine(EverquestLogFile.EverquestLogFile):
             for pid in pid_list:
                 EverquestLogFile.starprint(f'Killing process [{pid}]')
 
-                # for testing the actual kill process, uncomment the following line
-                # self.kill_armed = True
-                if self.kill_armed:
-                    os.kill(pid, signal.SIGKILL)
+                # for testing the actual kill process using simulated player deaths, uncomment the following line
+                # self._kill_armed = True
+                if self._kill_armed:
+                    os.kill(pid, signal.SIGTERM)
 
             # purge any death messages from the list
             self.reset()
